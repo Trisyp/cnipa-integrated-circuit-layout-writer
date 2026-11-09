@@ -1,0 +1,17 @@
+# Python 依赖（pip install -r requirements.txt）
+python-docx>=1.0      # 简要说明等 .docx 装配（可选）
+Pillow>=9.0           # TIFF 图样读写、规划示意页生成、像素检查
+matplotlib>=3.5       # 规划/示意分层页（非正式掩膜）时可选
+
+# 可选：简要说明中的 OMML 公式
+math2docx>=3.0
+
+# 可选渲染回退（仅当简要说明需 docx→pdf→png 视觉校验）：
+#   PyMuPDF               pdf -> png
+#   pywin32 或 docx2pdf   Windows 上用 Word 做 docx -> pdf
+# 开工前先跑 python scripts/doctor.py
+
+# 系统级依赖（非 pip）：
+#   - libreoffice (soffice)   可选，简要说明渲染
+#   - poppler-utils           可选，pdf -> png
+#   - 中文字体（Noto Sans CJK / 宋体）

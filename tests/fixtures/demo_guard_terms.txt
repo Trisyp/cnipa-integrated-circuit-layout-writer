@@ -1,0 +1,3 @@
+# fictional canary terms — not from any real layout project
+CANARY_LAYOUT_SECRET_XYZ
+re:CORE_GEOM_\d+

@@ -1,0 +1,8 @@
+{
+  "has_real_mask": false,
+  "layers": [
+    {"page": 1, "name": "总图", "note": "规划/示意"},
+    {"page": 2, "name": "示意有源", "note": "规划/示意"},
+    {"page": 3, "name": "示意互连", "note": "规划/示意"}
+  ]
+}

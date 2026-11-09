@@ -1,0 +1,43 @@
+{
+  "name": "cnipa-integrated-circuit-layout-writer",
+  "version": "0.1.0",
+  "description": "Agent Skill for drafting China IC layout-design registration materials (brief description, layered TIFF drawings, catalog, ZIP packages). Format only — never copy reference technical geometry.",
+  "bin": {
+    "cnipa-integrated-circuit-layout-writer": "bin/cli.js"
+  },
+  "files": [
+    "bin/",
+    "SKILL.md",
+    "references/",
+    "scripts/",
+    "requirements.txt",
+    "README.md",
+    "LICENSE",
+    "tests/"
+  ],
+  "keywords": [
+    "cursor",
+    "claude",
+    "agent-skill",
+    "skill",
+    "cnipa",
+    "集成电路布图设计",
+    "布图设计",
+    "布图登记",
+    "tiff",
+    "layout"
+  ],
+  "homepage": "https://github.com/Trisyp/cnipa-integrated-circuit-layout-writer#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Trisyp/cnipa-integrated-circuit-layout-writer.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Trisyp/cnipa-integrated-circuit-layout-writer/issues"
+  },
+  "author": "Trisyp",
+  "license": "MIT",
+  "engines": {
+    "node": ">=16.7"
+  }
+}

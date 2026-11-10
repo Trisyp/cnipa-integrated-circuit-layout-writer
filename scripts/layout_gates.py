@@ -3,35 +3,88 @@
 
 每个函数返回错误字符串列表（空 = 通过）。级别由调用方标 FAIL/WARN。
 
-    from layout_gates import (plan_as_mask, catalog_tiff_mismatch, term_drift,
+    from layout_gates import (plan_as_mask, unverified_signoff_claim,
+                              catalog_tiff_mismatch, term_drift,
                               secret_claim_leak, zip_rules_from_namelist)
 
 自检：python layout_gates.py --selftest
+
+门禁口径：
+- FAIL：无签核证据却声称已完成第三方 PDK DRC/LVS/流片，或把中心线示意图说成已签核掩膜。
+- 不再 FAIL：未导入 foundry GDS 的原创分层图样未写「规划/示意」二字。
+- ``has_real_mask``（已导入真实源图）不等于签核证据，不能单独放行 DRC/LVS/流片声明。
 """
 from __future__ import annotations
 import re
 import sys
 
 PLAN_MARKERS = ("规划", "示意", "planning", "schematic-only")
-MASK_CLAIMS = ("正式掩膜", "流片版图", "tape-out", "signoff layout", "正式版图")
+# 无 has_signoff_evidence 时命中即 FAIL。不用过于宽泛的「正式版图」，以免误伤「本布图设计之图样」。
+SIGNOFF_CLAIMS = (
+    "正式掩膜",
+    "流片版图",
+    "已签核掩膜",
+    "tape-out",
+    "tapeout",
+    "signoff layout",
+    "pdk signoff",
+    "foundry signoff",
+    "已完成DRC",
+    "已完成 DRC",
+    "已通过DRC",
+    "已通过 DRC",
+    "已完成LVS",
+    "已完成 LVS",
+    "已通过LVS",
+    "已通过 LVS",
+    "DRC/LVS 签核",
+    "DRC/LVS签核",
+    "已做 DRC/LVS",
+    "PDK 签核",
+    "PDK签核",
+    "第三方 PDK 签核",
+    "流片签核",
+    "已流片",
+    "已签核",
+)
 SECRET_CLAIMS = ("已作保密", "保密处理", "保密信息已去除", "confidential areas removed")
 
 
-def plan_as_mask(meta: dict) -> list:
-    """meta: {has_real_mask: bool, texts: [str], filenames: [str]}"""
+def _blob_of(meta: dict) -> str:
+    return "\n".join(meta.get("texts") or []) + "\n" + "\n".join(meta.get("filenames") or [])
+
+
+def _has_token(blob: str, token: str) -> bool:
+    if token.isascii():
+        return token.lower() in blob.lower()
+    return token in blob
+
+
+def unverified_signoff_claim(meta: dict) -> list:
+    """meta: {has_signoff_evidence: bool, texts: [str], filenames: [str],
+              require_plan_marker: bool=False, has_real_mask: bool}
+
+    has_real_mask 仅表示已接入真实源图，不能替代签核证据。
+    require_plan_marker 仅在调用方明确选择「中心线/示意占位包」时设为 True。
+    """
     errs = []
-    has_real = bool(meta.get("has_real_mask"))
-    blob = "\n".join(meta.get("texts") or []) + "\n" + "\n".join(meta.get("filenames") or [])
-    if has_real:
-        return errs
-    for m in MASK_CLAIMS:
-        if m.lower() in blob.lower() if m.isascii() else m in blob:
-            errs.append(f"PLAN_AS_MASK: 无真实掩膜源却出现「{m}」")
-    # also require at least one planning marker somewhere when not real
-    if meta.get("require_plan_marker", True):
-        if not any(m in blob for m in PLAN_MARKERS):
-            errs.append("PLAN_AS_MASK: 规划模式缺少「规划/示意」标记")
+    has_evidence = bool(meta.get("has_signoff_evidence"))
+    blob = _blob_of(meta)
+    if not has_evidence:
+        seen = set()
+        for m in SIGNOFF_CLAIMS:
+            if _has_token(blob, m) and m not in seen:
+                seen.add(m)
+                errs.append(f"PLAN_AS_MASK: 无签核证据却声称「{m}」")
+    if meta.get("require_plan_marker", False):
+        if not any(_has_token(blob, m) for m in PLAN_MARKERS):
+            errs.append("PLAN_AS_MASK: 已选择规划示意模式，但缺少「规划/示意」标记")
     return errs
+
+
+def plan_as_mask(meta: dict) -> list:
+    """兼容旧名。现为「无签核证据的签核声明」门禁；默认不再要求「规划」二字。"""
+    return unverified_signoff_claim(meta)
 
 
 def catalog_tiff_mismatch(catalog_pages: list, tiff_names: list) -> list:
@@ -100,18 +153,61 @@ def zip_rules_from_namelist(namelist: list, max_bytes: int | None = None, limit=
 
 def _selftest() -> int:
     fails = 0
+
     def check(cond, msg):
         nonlocal fails
         if not cond:
-            print("FAIL", msg); fails += 1
+            print("FAIL", msg)
+            fails += 1
         else:
             print("PASS", msg)
 
-    e = plan_as_mask({"has_real_mask": False, "texts": ["正式掩膜已就绪"], "filenames": ["1.tiff"], "require_plan_marker": False})
-    check(any("PLAN_AS_MASK" in x for x in e), "detect mask claim without real source")
+    e = plan_as_mask({
+        "has_signoff_evidence": False,
+        "texts": ["正式掩膜已就绪"],
+        "filenames": ["1.tiff"],
+    })
+    check(any("PLAN_AS_MASK" in x for x in e), "detect mask/signoff claim without evidence")
 
-    e = plan_as_mask({"has_real_mask": False, "texts": ["本页为规划示意"], "filenames": ["1.tiff"]})
-    check(e == [], "planning marker ok")
+    e = plan_as_mask({
+        "texts": ["已完成 DRC 与已通过 LVS，并已流片"],
+        "filenames": ["1.tiff"],
+    })
+    check(any("PLAN_AS_MASK" in x for x in e), "detect DRC/LVS/tape-out claim without evidence")
+
+    e = plan_as_mask({
+        "has_real_mask": True,
+        "has_signoff_evidence": False,
+        "texts": ["PDK 签核已完成"],
+        "filenames": ["1.tiff"],
+    })
+    check(any("PLAN_AS_MASK" in x for x in e), "foundry GDS alone does not waive signoff claims")
+
+    e = plan_as_mask({
+        "has_signoff_evidence": True,
+        "texts": ["已完成 DRC，已通过 LVS，流片签核见附件"],
+        "filenames": ["1.tiff"],
+    })
+    check(e == [], "signoff claims ok when evidence present")
+
+    e = plan_as_mask({
+        "texts": ["本页为规划示意"],
+        "filenames": ["1.tiff"],
+    })
+    check(e == [], "planning marker still ok (no signoff claim)")
+
+    e = plan_as_mask({
+        "texts": ["本布图设计之图样：金属1层（真实线宽多边形）"],
+        "filenames": ["1.tiff"],
+    })
+    check(e == [], "original drawings without 规划 and without signoff claims pass")
+
+    e = plan_as_mask({
+        "require_plan_marker": True,
+        "texts": ["本布图设计之图样"],
+        "filenames": ["1.tiff"],
+    })
+    check(any("规划/示意" in x for x in e), "opt-in planning mode still requires marker")
 
     e = catalog_tiff_mismatch(["总图", "M1"], ["1.tiff", "3.tiff"])
     check(any("ZIP_NAME_GAP" in x or "CATALOG" in x for x in e), "gap/mismatch detected")
